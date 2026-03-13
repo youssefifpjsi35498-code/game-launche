@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>⚡ ZIP Game Launcher</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #07070e;
+  --surface: #0f0f1a;
+  --card: #141422;
+  --border: #232338;
+  --accent: #00ffa3;
+  --purple: #8b5cf6;
+  --orange: #ff6b35;
+  --text: #eeeeff;
+  --muted: #7070a0;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--text); font-family:'Cairo',sans-serif; display:flex; flex-direction:column; height:100vh; }
+
+.header {
+  flex-shrink:0; background:rgba(7,7,14,0.97); backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border); padding:12px 16px;
+  display:flex; align-items:center; justify-content:space-between; gap:10px; z-index:50;
+}
+.logo { font-family:'Orbitron',monospace; font-size:15px; font-weight:900; background:linear-gradient(120deg,var(--accent),var(--purple)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.btn-upload-header { background:linear-gradient(135deg,var(--accent),#00cc80); color:#000; border:none; border-radius:10px; padding:8px 14px; font-size:13px; font-weight:700; font-family:'Cairo',sans-serif; cursor:pointer; position:relative; overflow:hidden; }
+.btn-upload-header input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+
+.main { flex:1; overflow:hidden; position:relative; }
+
+.library { position:absolute; inset:0; overflow-y:auto; padding:14px 14px 24px; transition:opacity 0.3s,transform 0.3s; }
+.library.hidden { opacity:0; pointer-events:none; transform:scale(0.97); }
+
+.welcome { background:linear-gradient(135deg,rgba(139,92,246,0.12),rgba(0,255,163,0.06)); border:1px solid var(--border); border-radius:18px; padding:20px; margin-bottom:16px; text-align:center; }
+.welcome-icon { font-size:44px; margin-bottom:8px; animation:bob 3s ease-in-out infinite; display:block; }
+@keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+.welcome h2 { font-size:17px; font-weight:700; margin-bottom:6px; }
+.welcome p { font-size:12px; color:var(--muted); line-height:1.7; }
+
+.drop-zone { border:2px dashed var(--border); border-radius:16px; padding:22px 16px; text-align:center; cursor:pointer; position:relative; transition:all 0.25s; margin-bottom:18px; }
+.drop-zone.drag-over { border-color:var(--accent); background:rgba(0,255,163,0.04); box-shadow:0 0 24px rgba(0,255,163,0.15); }
+.drop-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+.drop-icon { font-size:36px; margin-bottom:8px; }
+.drop-text { font-size:14px; font-weight:700; }
+.drop-sub { font-size:11px; color:var(--muted); margin-top:3px; }
+.badges { display:flex; gap:6px; justify-content:center; margin-top:10px; }
+.badge { background:var(--border); color:var(--accent); font-size:10px; font-family:'Orbitron',monospace; padding:3px 9px; border-radius:99px; }
+
+.sec-label { font-size:11px; font-weight:700; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+.sec-label::before { content:''; width:3px; height:14px; background:linear-gradient(var(--accent),var(--purple)); border-radius:99px; }
+
+.games-list { display:flex; flex-direction:column; gap:10px; }
+
+.game-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:13px; display:flex; align-items:center; gap:12px; animation:fadeUp 0.35s ease both; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+.game-thumb { width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:26px; flex-shrink:0; background:linear-gradient(135deg,var(--purple),var(--accent)); }
+.game-info { flex:1; min-width:0; }
+.game-name { font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.game-meta { font-size:11px; color:var(--muted); margin-top:3px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.tag { font-size:10px; padding:2px 7px; border-radius:99px; font-weight:600; }
+.tag-html { background:rgba(0,255,163,0.15); color:var(--accent); }
+.tag-other { background:rgba(255,107,53,0.15); color:var(--orange); }
+.game-btns { display:flex; flex-direction:column; gap:5px; flex-shrink:0; }
+.btn-play { background:linear-gradient(135deg,var(--accent),#00cc80); color:#000; border:none; border-radius:9px; padding:7px 13px; font-size:12px; font-weight:700; font-family:'Cairo',sans-serif; cursor:pointer; transition:all 0.2s; }
+.btn-play:active { transform:scale(0.93); }
+.btn-del { background:rgba(255,50,50,0.08); color:#ff7070; border:1px solid rgba(255,50,50,0.15); border-radius:8px; padding:5px 10px; font-size:10px; cursor:pointer; font-family:'Cairo',sans-serif; }
+
+.empty { text-align:center; padding:36px 20px; color:var(--muted); }
+.empty-icon { font-size:52px; opacity:0.3; margin-bottom:10px; }
+
+/* VIEWER */
+.viewer { position:absolute; inset:0; display:flex; flex-direction:column; background:#000; opacity:0; pointer-events:none; transform:translateY(100%); transition:opacity 0.35s,transform 0.35s; }
+.viewer.show { opacity:1; pointer-events:all; transform:translateY(0); }
+.viewer-bar { flex-shrink:0; background:rgba(7,7,14,0.97); border-bottom:1px solid var(--border); padding:8px 12px; display:flex; align-items:center; gap:10px; }
+.btn-back { background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:7px 13px; font-size:13px; font-weight:700; font-family:'Cairo',sans-serif; cursor:pointer; white-space:nowrap; }
+.viewer-title { font-size:13px; font-weight:700; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:right; }
+.btn-fs { background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:7px 10px; font-size:14px; cursor:pointer; flex-shrink:0; }
+.game-frame { flex:1; width:100%; border:none; background:#000; }
+.file-browser { flex:1; overflow-y:auto; padding:14px; }
+.file-item { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px; display:flex; align-items:center; gap:10px; margin-bottom:8px; cursor:pointer; transition:border-color 0.2s; }
+.file-item:active { border-color:var(--accent); }
+.file-icon { font-size:22px; flex-shrink:0; }
+.file-name { font-size:13px; font-weight:600; flex:1; word-break:break-all; }
+.file-size { font-size:11px; color:var(--muted); flex-shrink:0; }
+
+/* EXTRACT OVERLAY */
+.ext-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.88); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:200; display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.3s; }
+.ext-overlay.show { opacity:1; pointer-events:all; }
+.ext-box { background:var(--surface); border:1px solid var(--border); border-radius:22px; padding:28px 24px; width:calc(100% - 32px); max-width:380px; text-align:center; }
+.ext-gear { font-size:54px; animation:spin 1.2s linear infinite; display:block; margin-bottom:14px; }
+@keyframes spin { to{transform:rotate(360deg)} }
+.ext-name { font-size:16px; font-weight:700; margin-bottom:4px; }
+.ext-sub { font-size:12px; color:var(--muted); margin-bottom:20px; }
+.pbar-bg { height:8px; background:var(--border); border-radius:99px; overflow:hidden; }
+.pbar-fill { height:100%; border-radius:99px; background:linear-gradient(90deg,var(--purple),var(--accent)); width:0%; transition:width 0.15s; box-shadow:0 0 10px rgba(0,255,163,0.4); }
+.pbar-lbl { font-size:12px; color:var(--muted); margin-top:8px; }
+
+.toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%) translateY(10px); background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 18px; font-size:13px; font-weight:600; z-index:300; white-space:nowrap; opacity:0; transition:all 0.3s; pointer-events:none; }
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">⚡ ZIP LAUNCHER</div>
+  <button class="btn-upload-header">📦 رفع ZIP<input type="file" id="headerInput" accept=".zip" multiple></button>
+</div>
+
+<div class="main">
+  <div class="library" id="library">
+    <div class="welcome">
+      <span class="welcome-icon">🎮</span>
+      <h2>مشغّل ألعاب ZIP</h2>
+      <p>ارفع ZIP يحتوي لعبة HTML5<br>وهيشتغل جوه التطبيق مباشرة!</p>
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="dropInput" accept=".zip" multiple>
+      <div class="drop-icon">📦</div>
+      <div class="drop-text">اسحب ملف ZIP أو اضغط هنا</div>
+      <div class="drop-sub">يدعم ألعاب HTML5 / JavaScript</div>
+      <div class="badges"><span class="badge">.ZIP</span><span class="badge">HTML5</span><span class="badge">JS Games</span></div>
+    </div>
+
+    <div class="sec-label">مكتبة الألعاب</div>
+    <div class="games-list" id="gamesList"></div>
+    <div class="empty" id="emptyState">
+      <div class="empty-icon">🎯</div>
+      <p>ارفع ملف ZIP للبدء!</p>
+    </div>
+  </div>
+
+  <div class="viewer" id="viewer">
+    <div class="viewer-bar">
+      <button class="btn-back" id="backBtn">← رجوع</button>
+      <div class="viewer-title" id="viewerTitle">اللعبة</div>
+      <button class="btn-fs" id="fsBtn">⛶</button>
+    </div>
+    <iframe class="game-frame" id="gameFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups" allowfullscreen></iframe>
+    <div class="file-browser" id="fileBrowser" style="display:none"></div>
+  </div>
+</div>
+
+<div class="ext-overlay" id="extOverlay">
+  <div class="ext-box">
+    <span class="ext-gear">⚙️</span>
+    <div class="ext-name" id="extName">جاري فك الضغط...</div>
+    <div class="ext-sub" id="extSub">يرجى الانتظار</div>
+    <div class="pbar-bg"><div class="pbar-fill" id="pbarFill"></div></div>
+    <div class="pbar-lbl" id="pbarLbl">0%</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const ICONS = ['🎯','🔫','⚔️','🧩','🚗','🏆','🐉','🚀','👾','🤖','🌍','🎪','⚽','🏀','🎲'];
+let games = [];
+
+const $ = id => document.getElementById(id);
+
+// File inputs
+$('dropInput').addEventListener('change', e => handleFiles(e.target.files));
+$('headerInput').addEventListener('change', e => handleFiles(e.target.files));
+
+// Drag drop
+const dz = $('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
+
+async function handleFiles(list) {
+  for (const f of Array.from(list)) {
+    if (!f.name.toLowerCase().endsWith('.zip')) { showToast('⚠️ ZIP فقط'); continue; }
+    await processZip(f);
+  }
+}
+
+async function processZip(file) {
+  const name = file.name.replace(/\.zip$/i, '');
+  const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+
+  $('extName').textContent = name;
+  $('extSub').textContent = sizeMB + ' MB';
+  setP(0);
+  $('extOverlay').classList.add('show');
+
+  try {
+    setP(10);
+    const buf = await file.arrayBuffer();
+    setP(30);
+    const zip = await JSZip.loadAsync(buf);
+    setP(60);
+
+    const filesMap = new Map();
+    const entries = Object.values(zip.files).filter(f => !f.dir);
+    let done = 0;
+    for (const entry of entries) {
+      filesMap.set(entry.name, await entry.async('uint8array'));
+      done++;
+      setP(60 + (done / entries.length) * 35);
+    }
+    setP(100);
+
+    // Find HTML entry point
+    const htmlFiles = [...filesMap.keys()].filter(k => /\.(html|htm)$/i.test(k));
+    const entryHtml = htmlFiles.find(k => /^(index\.html?|[^/]+\/index\.html?)$/i.test(k)) || htmlFiles[0] || null;
+
+    games.push({ id: Date.now(), name, sizeMB, icon: ICONS[Math.floor(Math.random() * ICONS.length)], files: filesMap, entryHtml });
+    setTimeout(() => { $('extOverlay').classList.remove('show'); renderGames(); showToast('✅ تم تحميل ' + name); }, 400);
+  } catch(err) {
+    $('extOverlay').classList.remove('show');
+    showToast('❌ ' + err.message);
+  }
+}
+
+function setP(v) { $('pbarFill').style.width = v + '%'; $('pbarLbl').textContent = Math.round(v) + '%'; }
+
+function renderGames() {
+  const list = $('gamesList');
+  list.innerHTML = '';
+  $('emptyState').style.display = games.length ? 'none' : 'block';
+  games.forEach((g, i) => {
+    const c = document.createElement('div');
+    c.className = 'game-card';
+    c.style.animationDelay = (i * 0.06) + 's';
+    c.innerHTML = `
+      <div class="game-thumb">${g.icon}</div>
+      <div class="game-info">
+        <div class="game-name">${g.name}</div>
+        <div class="game-meta">
+          <span>📦 ${g.sizeMB} MB</span>
+          <span class="tag ${g.entryHtml ? 'tag-html' : 'tag-other'}">${g.entryHtml ? '✓ HTML5' : '📁 ملفات'}</span>
+        </div>
+      </div>
+      <div class="game-btns">
+        <button class="btn-play">▶ تشغيل</button>
+        <button class="btn-del">🗑 حذف</button>
+      </div>`;
+    c.querySelector('.btn-play').onclick = () => launch(i);
+    c.querySelector('.btn-del').onclick = () => { games.splice(i,1); renderGames(); showToast('🗑 تم الحذف'); };
+    list.appendChild(c);
+  });
+}
+
+async function launch(idx) {
+  const g = games[idx];
+  $('viewerTitle').textContent = g.icon + ' ' + g.name;
+  if (g.entryHtml) await launchHtml(g);
+  else showFileBrowser(g);
+  $('library').classList.add('hidden');
+  $('viewer').classList.add('show');
+}
+
+async function launchHtml(g) {
+  $('gameFrame').style.display = 'block';
+  $('fileBrowser').style.display = 'none';
+
+  // Build blob URL map
+  const urlMap = new Map();
+  for (const [path, data] of g.files) {
+    const blob = new Blob([data], { type: getMime(path) });
+    const url = URL.createObjectURL(blob);
+    urlMap.set(path, url);
+    urlMap.set(path.split('/').pop(), url);
+  }
+
+  // Rewrite HTML
+  let html = new TextDecoder().decode(g.files.get(g.entryHtml));
+  const baseDir = g.entryHtml.includes('/') ? g.entryHtml.substring(0, g.entryHtml.lastIndexOf('/')+1) : '';
+
+  html = html.replace(/(src|href)\s*=\s*["']([^"'#][^"']*)["']/gi, (m, attr, val) => {
+    if (/^(https?:|data:|blob:)/.test(val)) return m;
+    const r = urlMap.get(val) || urlMap.get(baseDir + val) || urlMap.get(val.split('/').pop());
+    return r ? `${attr}="${r}"` : m;
+  });
+  html = html.replace(/url\(['"]?([^'")#][^'")]+)['"]?\)/gi, (m, val) => {
+    if (/^(https?:|data:|blob:)/.test(val)) return m;
+    const r = urlMap.get(val) || urlMap.get(baseDir + val) || urlMap.get(val.split('/').pop());
+    return r ? `url("${r}")` : m;
+  });
+
+  const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  $('gameFrame').src = blobUrl;
+}
+
+function showFileBrowser(g) {
+  $('gameFrame').style.display = 'none';
+  $('fileBrowser').style.display = 'block';
+  $('fileBrowser').innerHTML = `<div style="text-align:center;padding:14px 0 18px;color:var(--muted);font-size:13px;">⚠️ لم يوجد index.html — اختر ملف لفتحه:</div>`;
+  for (const [path, data] of g.files) {
+    const item = document.createElement('div');
+    item.className = 'file-item';
+    item.innerHTML = `<div class="file-icon">${getIcon(path)}</div><div class="file-name">${path}</div><div class="file-size">${(data.length/1024).toFixed(1)} KB</div>`;
+    if (/\.(html|htm)$/i.test(path)) {
+      item.onclick = () => { g.entryHtml = path; launchHtml(g); };
+    } else {
+      item.onclick = () => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([data], { type: getMime(path) }));
+        a.download = path.split('/').pop(); a.click();
+        showToast('📥 تم التحميل');
+      };
+    }
+    $('fileBrowser').appendChild(item);
+  }
+}
+
+$('backBtn').onclick = () => {
+  $('viewer').classList.remove('show');
+  $('library').classList.remove('hidden');
+  $('gameFrame').src = 'about:blank';
+  $('fileBrowser').innerHTML = '';
+};
+
+$('fsBtn').onclick = () => {
+  const el = $('gameFrame').style.display !== 'none' ? $('gameFrame') : $('viewer');
+  (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+};
+
+function getMime(p) {
+  const e = p.split('.').pop().toLowerCase();
+  return {html:'text/html',htm:'text/html',css:'text/css',js:'application/javascript',mjs:'application/javascript',json:'application/json',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',svg:'image/svg+xml',mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav',mp4:'video/mp4',webm:'video/webm',woff:'font/woff',woff2:'font/woff2',ttf:'font/ttf',wasm:'application/wasm',ico:'image/x-icon'}[e] || 'application/octet-stream';
+}
+function getIcon(p) {
+  const e = p.split('.').pop().toLowerCase();
+  return {html:'🌐',htm:'🌐',js:'📜',css:'🎨',png:'🖼️',jpg:'🖼️',jpeg:'🖼️',gif:'🖼️',webp:'🖼️',svg:'🔷',mp3:'🎵',ogg:'🎵',wav:'🎵',mp4:'🎬',json:'📋',wasm:'⚙️'}[e] || '📄';
+}
+function showToast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+renderGames();
+</script>
+</body>
+</html>
